@@ -62,7 +62,7 @@ class Network(object):
                 training_data[k:k+mini_batch_size]
                 for k in range(0, n, mini_batch_size)]
             for mini_batch in mini_batches:
-                self.update_mini_batch(mini_batch, eta)
+                self.update_mini_batch2(mini_batch, eta)
             time2 = time.time()
             if test_data:
                 print("Epoch {0}: {1} / {2}, took {3:.2f} seconds".format(
@@ -126,14 +126,63 @@ class Network(object):
         network outputs the correct result. Note that the neural
         network's output is assumed to be the index of whichever
         neuron in the final layer has the highest activation."""
-        test_results = [(np.argmax(self.feedforward(x)), y)
+        test_results = [(np.argmax(self.feedforward2(x)), y)
                         for (x, y) in test_data]
         return sum(int(x == y) for (x, y) in test_results)
 
     def cost_derivative(self, output_activations, y):
         """Return the vector of partial derivatives \partial C_x /
-        \partial a for the output activations."""
+        \\partial a for the output activations."""
         return (output_activations-y)
+    
+    def feedforward2(self, a):
+        zs = []
+        activations = [a]
+
+        activation = a
+        for b, w in zip(self.biases, self.weights):
+            z = np.dot(w, activation) + b
+            zs.append(z)
+            activation = sigmoid(z)
+            activations.append(activation)
+
+        return (zs, activations)
+
+    def update_mini_batch2(self, mini_batch, eta):
+        batch_size = len(mini_batch)
+
+        # transform to (input x batch_size) matrix
+        x = np.asarray([_x.ravel() for _x, _y in mini_batch]).transpose()
+        # transform to (output x batch_size) matrix
+        y = np.asarray([_y.ravel() for _x, _y in mini_batch]).transpose()
+
+        nabla_b, nabla_w = self.backprop2(x, y)
+        self.weights = [w - (eta / batch_size) * nw for w, nw in zip(self.weights, nabla_w)]
+        self.biases = [b - (eta / batch_size) * nb for b, nb in zip(self.biases, nabla_b)]
+
+        return
+
+    def backprop2(self, x, y):
+
+        nabla_b = [0 for i in self.biases]
+        nabla_w = [0 for i in self.weights]
+
+        # feedforward
+        zs, activations = self.feedforward2(x)
+
+        # backward pass
+        delta = self.cost_derivative(activations[-1], y) * sigmoid_prime(zs[-1])
+        nabla_b[-1] = delta.sum(1).reshape([len(delta), 1]) # reshape to (n x 1) matrix
+        nabla_w[-1] = np.dot(delta, activations[-2].transpose())
+
+        for l in range(2, self.num_layers):
+            z = zs[-l]
+            sp = sigmoid_prime(z)
+            delta = np.dot(self.weights[-l + 1].transpose(), delta) * sp
+            nabla_b[-l] = delta.sum(1).reshape([len(delta), 1]) # reshape to (n x 1) matrix
+            nabla_w[-l] = np.dot(delta, activations[-l - 1].transpose())
+
+        return (nabla_b, nabla_w)
 
 #### Miscellaneous functions
 def sigmoid(z):
